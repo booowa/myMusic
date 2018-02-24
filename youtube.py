@@ -1,19 +1,20 @@
+
 # -*- coding: utf-8 -*-
 
-import os
+#import os
 
-import google.oauth2.credentials
+#import google.oauth2.credentials
 
-import google_auth_oauthlib.flow
+#import google_auth_oauthlib.flow
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
-from google_auth_oauthlib.flow import InstalledAppFlow
+#from googleapiclient.errors import HttpError
+#from google_auth_oauthlib.flow import InstalledAppFlow
 
 # The CLIENT_SECRETS_FILE variable specifies the name of a file that contains
 # the OAuth 2.0 information for this application, including its client_id and
 # client_secret.
-CLIENT_SECRETS_FILE = "Oautho.json"
-
+CLIENT_SECRETS_FILE = "client_secret.json"
+DEVELOPER_KEY = "AIzaSyBVs7UfOJVTfr5nrd0N9LiMPuqWxRqoxWM"
 
 # This OAuth 2.0 access scope allows for full read/write access to the
 # authenticated user's account and requires requests to use an SSL connection.
@@ -21,6 +22,25 @@ SCOPES = ['https://www.googleapis.com/auth/youtube.force-ssl']
 API_SERVICE_NAME = 'youtube'
 API_VERSION = 'v3'
 
+CHANNEL_ID = "UCRI-p_uLzQ_plYueAF-qqYw"
+
+def get_authenticated_service():
+    client =  build(API_SERVICE_NAME, API_VERSION, developerKey=DEVELOPER_KEY)
+    return client
+
+def list_playlists(client, **kwargs):
+    response = client.playlists().list(**kwargs).execute()
+    return response
+
+if __name__ == '__main__':
+
+    youtube = get_authenticated_service()
+    response = list_playlists(youtube, part='snippet,contentDetails', channelId=CHANNEL_ID)
+    print(response)
+
+    #print(youtube.playlists().list(part='snippet,contentDetails', channelId=CHANNEL_ID).execute())
+
+'''
 def get_authenticated_service():
     flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRETS_FILE, SCOPES)
     credentials = flow.run_console()
@@ -74,7 +94,7 @@ def build_resource(properties):
 def remove_empty_kwargs(**kwargs):
     good_kwargs = {}
     if kwargs is not None:
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
             if value:
                 good_kwargs[key] = value
     return good_kwargs
@@ -90,11 +110,9 @@ def playlists_list_mine(client, **kwargs):
     return print_response(response)
 
 
-if __name__ == '__main__':
+
     # When running locally, disable OAuthlib's HTTPs verification. When
     # running in production *do not* leave this option enabled.
-
-    #help()
     os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
     client = get_authenticated_service()
 
@@ -102,5 +120,7 @@ if __name__ == '__main__':
                         part='snippet,contentDetails',
                         mine=True,
                         maxResults=25,
-                        onBehalfOfContentOwner='',
+                        onBehalfOfContentOwner='cl',
                         onBehalfOfContentOwnerChannel='')
+                        
+'''
