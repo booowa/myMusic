@@ -7,6 +7,7 @@
 
 #import google_auth_oauthlib.flow
 from googleapiclient.discovery import build
+import json
 #from googleapiclient.errors import HttpError
 #from google_auth_oauthlib.flow import InstalledAppFlow
 
@@ -24,6 +25,119 @@ API_VERSION = 'v3'
 
 CHANNEL_ID = "UCRI-p_uLzQ_plYueAF-qqYw"
 
+
+class PlaylistCollection(object):
+
+    def __init__(self):
+        self.playlist = []
+        #self.titleList = []
+        #self.idList = []
+
+    def add_playlist(self, title, playlistId):
+        self.playlist.append(Playlist(title,playlistId))
+        #self.titleList.append(title)
+        #self.idList.append(playlistId)
+
+    def get_playlist_id_by_title(self, title):
+        for x in self.playlist:
+            if x.title == title:
+                ret = x.id
+                break
+        else:
+            ret = None
+            print("There is no playlist with title: {}".format(title))
+        return ret
+
+    def get_one_playlists(self):
+        if self.playlist is not None:
+            for x in self.playlist:
+                yield x
+        #return self.IDs
+
+    def retrieve_playlist_from_youtube(self, client, channel_id):
+        #function
+
+        #nextPage initial condition to the loop
+        nextPage = 1
+        while nextPage:
+            if nextPage == 1:
+                nextPage=None
+
+            response = list_playlists(client, part='snippet,contentDetails', channelId=channel_id, pageToken=nextPage)
+            #print(response)
+            if 'nextPageToken' in response.keys():
+                nextPage = response['nextPageToken']
+            else:
+                nextPage = None
+
+            for json in response['items']:
+                self.add_playlist(json['snippet']['title'], json['id'])
+
+    def __str__(self):
+        ret = ''
+        for x in self.playlist:
+            ret += "Playlist title: {}, ID {}\n".format(x.title, x.id)
+        return ret
+
+
+class Playlist(object):
+
+    def __init__(self, title, id):
+        self.title = title
+        self.id = id
+        self.songs = []
+
+    def retrieve_songs_from_playlist_by_id(self, client, playlistid):
+
+        nextPage = 1
+        while nextPage:
+            if nextPage == 1:
+                nextPage=None
+
+            response = client.playlistItems().list(part='snippet',playlistId=playlistid, pageToken=nextPage).execute()
+
+            if 'nextPageToken' in response.keys():
+                nextPage = response['nextPageToken']
+            else:
+                nextPage = None
+
+            #print(response['items'][0]['snippet']['title'])
+            for json in response['items']:
+                self.addSongToPlaylist(json['snippet']['title'])
+                #print(json['snippet']['title'])
+
+
+        return response
+
+    def addSongToPlaylist(self, songTitle):
+        self.songs.append(Song(songTitle))
+
+    def getPlaylistID(self,):
+        pass
+
+    def get_number_of_songs(self):
+        return len(self.songs)
+
+    def get_song(self):
+        if self.songs is not None:
+            for song in self.songs:
+                yield song.youtubeTitle
+
+    def __str__(self):
+        ret = "Playlist title: {}, ID {}\n".format(self.title, self.id)
+        return ret
+
+
+class Song(object):
+
+    def __init__(self, youtubeTitle):
+        self.youtubeTitle = youtubeTitle
+        self.artist = ''
+        self.title = ''
+        self.additonalInfo = ''
+        self.time = ''
+
+
 def get_authenticated_service():
     client =  build(API_SERVICE_NAME, API_VERSION, developerKey=DEVELOPER_KEY)
     return client
@@ -34,93 +148,18 @@ def list_playlists(client, **kwargs):
 
 if __name__ == '__main__':
 
-    youtube = get_authenticated_service()
-    response = list_playlists(youtube, part='snippet,contentDetails', channelId=CHANNEL_ID)
-    print(response)
-
-    #print(youtube.playlists().list(part='snippet,contentDetails', channelId=CHANNEL_ID).execute())
-
-'''
-def get_authenticated_service():
-    flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRETS_FILE, SCOPES)
-    credentials = flow.run_console()
-    return build(API_SERVICE_NAME, API_VERSION, credentials = credentials)
-
-def print_response(response):
-    print(response)
-
-# Build a resource based on a list of properties given as key-value pairs.
-# Leave properties with empty values out of the inserted resource.
-def build_resource(properties):
-    resource = {}
-    for p in properties:
-        # Given a key like "snippet.title", split into "snippet" and "title", where
-        # "snippet" will be an object and "title" will be a property in that object.
-        prop_array = p.split('.')
-        ref = resource
-        for pa in range(0, len(prop_array)):
-            is_array = False
-            key = prop_array[pa]
-
-            # For properties that have array values, convert a name like
-            # "snippet.tags[]" to snippet.tags, and set a flag to handle
-            # the value as an array.
-            if key[-2:] == '[]':
-                key = key[0:len(key)-2:]
-                is_array = True
-
-            if pa == (len(prop_array) - 1):
-                # Leave properties without values out of inserted resource.
-                if properties[p]:
-                    if is_array:
-                        ref[key] = properties[p].split(',')
-                    else:
-                        ref[key] = properties[p]
-            elif key not in ref:
-                # For example, the property is "snippet.title", but the resource does
-                # not yet have a "snippet" object. Create the snippet object here.
-                # Setting "ref = ref[key]" means that in the next time through the
-                # "for pa in range ..." loop, we will be setting a property in the
-                # resource's "snippet" object.
-                ref[key] = {}
-                ref = ref[key]
-            else:
-                # For example, the property is "snippet.description", and the resource
-                # already has a "snippet" object.
-                ref = ref[key]
-    return resource
-
-# Remove keyword arguments that are not set
-def remove_empty_kwargs(**kwargs):
-    good_kwargs = {}
-    if kwargs is not None:
-        for key, value in kwargs.items():
-            if value:
-                good_kwargs[key] = value
-    return good_kwargs
-
-def playlists_list_mine(client, **kwargs):
-    # See full sample for function
-    kwargs = remove_empty_kwargs(**kwargs)
-
-    response = client.playlists().list(
-        **kwargs
-    ).execute()
-
-    return print_response(response)
-
-
-
-    # When running locally, disable OAuthlib's HTTPs verification. When
-    # running in production *do not* leave this option enabled.
-    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
     client = get_authenticated_service()
+    youtubePlaylists = PlaylistCollection()
+    youtubePlaylists.retrieve_playlist_from_youtube(client, CHANNEL_ID)
 
-    playlists_list_mine(client,
-                        part='snippet,contentDetails',
-                        mine=True,
-                        maxResults=25,
-                        onBehalfOfContentOwner='cl',
-                        onBehalfOfContentOwnerChannel='')
-                        
-'''
+    for playlist in youtubePlaylists.get_one_playlists():
+
+        itemsJson = playlist.retrieve_songs_from_playlist_by_id(client, playlist.id)
+        print("Playlista: {}, Number of songs: {}".format(playlist.title,playlist.get_number_of_songs()))
+
+
+
+    for playlist in youtubePlaylists.get_one_playlists():
+
+
+
