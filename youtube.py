@@ -14,15 +14,15 @@ import json
 # The CLIENT_SECRETS_FILE variable specifies the name of a file that contains
 # the OAuth 2.0 information for this application, including its client_id and
 # client_secret.
-CLIENT_SECRETS_FILE = "client_secret.json"
-DEVELOPER_KEY = "AIzaSyBVs7UfOJVTfr5nrd0N9LiMPuqWxRqoxWM"
+#CLIENT_SECRETS_FILE = "client_secret.json"
+DEVELOPER_KEY = ""
+#AIzaSyBVs7UfOJVTfr5nrd0N9LiMPuqWxRqoxWM"
 
 # This OAuth 2.0 access scope allows for full read/write access to the
 # authenticated user's account and requires requests to use an SSL connection.
 SCOPES = ['https://www.googleapis.com/auth/youtube.force-ssl']
 API_SERVICE_NAME = 'youtube'
 API_VERSION = 'v3'
-
 CHANNEL_ID = "UCRI-p_uLzQ_plYueAF-qqYw"
 
 
@@ -56,7 +56,6 @@ class PlaylistCollection(object):
 
     def retrieve_playlist_from_youtube(self, client, channel_id):
         #function
-
         #nextPage initial condition to the loop
         nextPage = 1
         while nextPage:
@@ -84,7 +83,7 @@ class Playlist(object):
 
     def __init__(self, title, id):
         self.title = title
-        self.id = id
+        self.id = idg
         self.songs = []
 
     def retrieve_songs_from_playlist_by_id(self, client, playlistid):
@@ -106,14 +105,13 @@ class Playlist(object):
                 self.addSongToPlaylist(json['snippet']['title'])
                 #print(json['snippet']['title'])
 
-
         return response
 
     def addSongToPlaylist(self, songTitle):
         self.songs.append(Song(songTitle))
 
     def getPlaylistID(self,):
-        pass
+        return self.id
 
     def get_number_of_songs(self):
         return len(self.songs)
@@ -121,7 +119,8 @@ class Playlist(object):
     def get_song(self):
         if self.songs is not None:
             for song in self.songs:
-                yield song.youtubeTitle
+                #print(type(song))
+                yield song
 
     def __str__(self):
         ret = "Playlist title: {}, ID {}\n".format(self.title, self.id)
@@ -130,12 +129,15 @@ class Playlist(object):
 
 class Song(object):
 
-    def __init__(self, youtubeTitle):
-        self.youtubeTitle = youtubeTitle
+    def __init__(self, songString):
+        self.songString = songString
         self.artist = ''
         self.title = ''
         self.additonalInfo = ''
         self.time = ''
+
+    def get_song_songString(self):
+        return self.songString
 
 
 def get_authenticated_service():
@@ -146,20 +148,12 @@ def list_playlists(client, **kwargs):
     response = client.playlists().list(**kwargs).execute()
     return response
 
-if __name__ == '__main__':
+def set_developer_key(key):
+    global DEVELOPER_KEY
+    DEVELOPER_KEY = key
+    #print("key {}, DEVELOPER_KEY {}".format(key, DEVELOPER_KEY))
+    return 0
 
-    client = get_authenticated_service()
-    youtubePlaylists = PlaylistCollection()
-    youtubePlaylists.retrieve_playlist_from_youtube(client, CHANNEL_ID)
-
-    for playlist in youtubePlaylists.get_one_playlists():
-
-        itemsJson = playlist.retrieve_songs_from_playlist_by_id(client, playlist.id)
-        print("Playlista: {}, Number of songs: {}".format(playlist.title,playlist.get_number_of_songs()))
-
-
-
-    for playlist in youtubePlaylists.get_one_playlists():
-
-
-
+def test_developer_key():
+    print(DEVELOPER_KEY)
+    return 0
