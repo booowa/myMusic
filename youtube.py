@@ -1,22 +1,23 @@
-
 # -*- coding: utf-8 -*-
 
-#import os
+# import os
 
-#import google.oauth2.credentials
+# import google.oauth2.credentials
 
-#import google_auth_oauthlib.flow
+# import google_auth_oauthlib.flow
 from googleapiclient.discovery import build
+from database import *
 import json
-#from googleapiclient.errors import HttpError
-#from google_auth_oauthlib.flow import InstalledAppFlow
+
+# from googleapiclient.errors import HttpError
+# from google_auth_oauthlib.flow import InstalledAppFlow
 
 # The CLIENT_SECRETS_FILE variable specifies the name of a file that contains
 # the OAuth 2.0 information for this application, including its client_id and
 # client_secret.
-#CLIENT_SECRETS_FILE = "client_secret.json"
+# CLIENT_SECRETS_FILE = "client_secret.json"
 DEVELOPER_KEY = ""
-#AIzaSyBVs7UfOJVTfr5nrd0N9LiMPuqWxRqoxWM"
+# AIzaSyBVs7UfOJVTfr5nrd0N9LiMPuqWxRqoxWM"
 
 # This OAuth 2.0 access scope allows for full read/write access to the
 # authenticated user's account and requires requests to use an SSL connection.
@@ -30,13 +31,13 @@ class PlaylistCollection(object):
 
     def __init__(self):
         self.playlist = []
-        #self.titleList = []
-        #self.idList = []
+        # self.titleList = []
+        # self.idList = []
 
     def add_playlist(self, title, playlistId):
-        self.playlist.append(Playlist(title,playlistId))
-        #self.titleList.append(title)
-        #self.idList.append(playlistId)
+        self.playlist.append(Playlist(title, playlistId))
+        # self.titleList.append(title)
+        # self.idList.append(playlistId)
 
     def get_playlist_id_by_title(self, title):
         for x in self.playlist:
@@ -52,18 +53,18 @@ class PlaylistCollection(object):
         if self.playlist is not None:
             for x in self.playlist:
                 yield x
-        #return self.IDs
+        # return self.IDs
 
     def retrieve_playlist_from_youtube(self, client, channel_id):
-        #function
-        #nextPage initial condition to the loop
+        # function
+        # nextPage initial condition to the loop
         nextPage = 1
         while nextPage:
             if nextPage == 1:
-                nextPage=None
+                nextPage = None
 
             response = list_playlists(client, part='snippet,contentDetails', channelId=channel_id, pageToken=nextPage)
-            #print(response)
+            # print(response)
             if 'nextPageToken' in response.keys():
                 nextPage = response['nextPageToken']
             else:
@@ -91,26 +92,33 @@ class Playlist(object):
         nextPage = 1
         while nextPage:
             if nextPage == 1:
-                nextPage=None
+                nextPage = None
 
-            response = client.playlistItems().list(part='snippet',playlistId=playlistid, pageToken=nextPage).execute()
+            response = client.playlistItems().list(part='snippet', playlistId=playlistid, pageToken=nextPage).execute()
 
             if 'nextPageToken' in response.keys():
                 nextPage = response['nextPageToken']
             else:
                 nextPage = None
 
-            #print(response['items'][0]['snippet']['title'])
+            # print(response['items'][0]['snippet']['title'])
             for json in response['items']:
-                self.addSongToPlaylist(json['snippet']['title'])
-                #print(json['snippet']['title'])
+                title = json['snippet']['title']
+                videoId = json['snippet']['resourceId']['videoId']
+                self.addSongToPlaylist(title, videoId)
+                # print("Title {} VideoId {}".format(title, videoId))
+                # print(json['snippet']['title'])
 
         return response
 
-    def addSongToPlaylist(self, songTitle):
-        self.songs.append(Song(songTitle))
+    def get_song_duration_by_videoId(self, videoId):
+        pass
+        # todo need content,
 
-    def getPlaylistID(self,):
+    def addSongToPlaylist(self, songTitle, videoId):
+        self.songs.append(Song(songTitle, videoId))
+
+    def getPlaylistID(self, ):
         return self.id
 
     def get_number_of_songs(self):
@@ -119,7 +127,7 @@ class Playlist(object):
     def get_song(self):
         if self.songs is not None:
             for song in self.songs:
-                #print(type(song))
+                # print(type(song))
                 yield song
 
     def __str__(self):
@@ -129,8 +137,9 @@ class Playlist(object):
 
 class Song(object):
 
-    def __init__(self, songString):
+    def __init__(self, songString, videoId):
         self.songString = songString
+        self.videoId = videoId
         self.artist = ''
         self.title = ''
         self.additonalInfo = ''
@@ -139,21 +148,70 @@ class Song(object):
     def get_song_songString(self):
         return self.songString
 
+    ###TODO NOT USED YET
+    def add_videoid_to_song(self, videoid):
+        self.videoId = videoid
+
+    def get_song_time_by_videoId(self):
+        pass
+    ##TODO needs some contents
+
+
+def init_tables_youtube():
+    '''Fuctions checks if table in db exists, if not it creates them
+       and updates'''
+
+    init_database()
+
+    youtubePlaylists.retrieve_playlist_from_youtube(client, CHANNEL_ID)
+    for playlist in youtubePlaylists.get_one_playlists():
+        itemsJson = playlist.retrieve_songs_from_playlist_by_id(client, playlist.getPlaylistID())
+        print("******* Playlista: {}, Number of songs: {}".format(playlist.title, playlist.get_number_of_songs()))
+        add_record_to_db('playlists', title=playlist.title, source='youtube')
+        db_playlist_id = get_db_playlist_id(playlist.title)
+        #playlist_id = add_record_to_db_playlist(playlist, source='youtube')
+        print("******* " + playlist.getPlaylistID())
+        for song in playlist.songs:
+            print(song.get_song_songString())
+            song_string = song.get_song_songString()
+            add_record_to_db('songs', song_string=song_string, source='youtube', playlist_id=db_playlist_id)
+            #add_update_record_to_db_songs(song_string, playlist_id=db_playlist_id, source='youtube')
+        #    update
+        # , playlist, source='youtube')
+
+        # print(playlist.retrieve_songs_from_playlist_by_id(client, playlist.getPlaylistID()))
+
+    # for playlist in youtubePlaylists.get_one_playlists():
+
+
+def update_song_db_youtube():
+    pass
+
 
 def get_authenticated_service():
-    client =  build(API_SERVICE_NAME, API_VERSION, developerKey=DEVELOPER_KEY)
+    client = build(API_SERVICE_NAME, API_VERSION, developerKey=DEVELOPER_KEY)
     return client
+
 
 def list_playlists(client, **kwargs):
     response = client.playlists().list(**kwargs).execute()
     return response
 
+
 def set_developer_key(key):
     global DEVELOPER_KEY
     DEVELOPER_KEY = key
-    #print("key {}, DEVELOPER_KEY {}".format(key, DEVELOPER_KEY))
+    # print("key {}, DEVELOPER_KEY {}".format(key, DEVELOPER_KEY))
     return 0
+
 
 def test_developer_key():
     print(DEVELOPER_KEY)
     return 0
+
+
+youtubePlaylists = PlaylistCollection()
+with open('ApiKey.txt') as f:
+    set_developer_key(f.readline())
+client = get_authenticated_service()
+print("do i get to all lines in youtube module when runnign main.py")
