@@ -7,6 +7,7 @@
 # import google_auth_oauthlib.flow
 from googleapiclient.discovery import build
 from database import *
+import logging
 import json
 
 # from googleapiclient.errors import HttpError
@@ -111,10 +112,6 @@ class Playlist(object):
 
         return response
 
-    def get_song_duration_by_videoId(self, videoId):
-        pass
-        # todo need content,
-
     def addSongToPlaylist(self, songTitle, videoId):
         self.songs.append(Song(songTitle, videoId))
 
@@ -152,9 +149,36 @@ class Song(object):
     def add_videoid_to_song(self, videoid):
         self.videoId = videoid
 
-    def get_song_time_by_videoId(self):
-        pass
     ##TODO needs some contents
+
+    def get_song_duration(self, client, **kwargs):
+        if 'id' not in kwargs.keys():
+            kwargs['id'] = self.videoId
+        response = client.videos().list(**kwargs).execute()
+        #print(response)
+        logging.debug(response)
+        self.time = response['items'][0]['contentDetails']['duration']
+        self.time = self.convert_youtube_time_to_seconds(self.time)
+        print("Song: {} duration: {}".format(self.songString, self.time))
+
+        return self.time
+
+    @staticmethod
+    def convert_youtube_time_to_seconds(time):
+        '''Function should parese values for minutes and seconds
+           form text like: PT3M28S
+           More over function is roobust to deal with songs that
+           have only minutes part PT3M           '''
+        pattern_obj = re.compile(r'''
+                        PT(\d{1,2})M       #minutes
+                        (?:(\d{1,2})S)?    #seconds optional
+                        ''', re.VERBOSE)
+        m = re.search(pattern_obj, time)
+        time = 60 * int(m.group(1))
+        if (m.group(2)):
+            time += int(m.group(2))
+        print("Converted time {}".format(time))
+        return time
 
 
 def init_tables_youtube():
@@ -169,13 +193,16 @@ def init_tables_youtube():
         print("******* Playlista: {}, Number of songs: {}".format(playlist.title, playlist.get_number_of_songs()))
         add_record_to_db('playlists', title=playlist.title, source='youtube')
         db_playlist_id = get_db_playlist_id(playlist.title)
-        #playlist_id = add_record_to_db_playlist(playlist, source='youtube')
+        # playlist_id = add_record_to_db_playlist(playlist, source='youtube')
         print("******* " + playlist.getPlaylistID())
         for song in playlist.songs:
             print(song.get_song_songString())
             song_string = song.get_song_songString()
-            add_record_to_db('songs', song_string=song_string, source='youtube', playlist_id=db_playlist_id)
-            #add_update_record_to_db_songs(song_string, playlist_id=db_playlist_id, source='youtube')
+            time = song.get_song_duration(client, part='contentDetails')
+            song_id_in_db = add_record_to_db('songs', song_string=song_string, source='youtube', playlist_id=db_playlist_id)
+            add_record_to_db('song_details', )
+
+            # add_update_record_to_db_songs(song_string, playlist_id=db_playlist_id, source='youtube')
         #    update
         # , playlist, source='youtube')
 
@@ -209,9 +236,14 @@ def test_developer_key():
     print(DEVELOPER_KEY)
     return 0
 
+#------------- logging configuration ---------------------#
+logging.basicConfig(format='%(levelname)s:%(module)s:%(funcName)s:%(lineno)d:%(message)s', filename='youtube.log',level=logging.DEBUG, filemode='w')
+#logging.basicConfig(filename='youtube.log',level=logging.DEBUG, filemode='w')
+
+logger = logging.getLogger(__name__)
 
 youtubePlaylists = PlaylistCollection()
 with open('ApiKey.txt') as f:
     set_developer_key(f.readline())
 client = get_authenticated_service()
-print("do i get to all lines in youtube module when runnign main.py")
+logging.info("did i get to all lines in youtube module when running main.py")

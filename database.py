@@ -1,5 +1,6 @@
 import sqlite3
 import re
+import peewee
 
 count_how_many_songs_were_added = 0
 
@@ -52,12 +53,13 @@ def add_record_to_db(table, **kwargs):
 
         columns = list(get_columns_from_table(c, table))
         #c.execute("SELECT * FROM " + table + " ")
+        #creats tuple with values for all avilable keys, if key dosn't exist in kwargs it will put None value
         data = tuple([kwargs[i] if i in kwargs.keys() else None for i in columns])
-        if not db_content_with_data_to_be_added_are_same(is_in_db, data) or is_in_db is not None:
+        if not db_content_with_data_to_be_added_are_the_same(is_in_db, data) or is_in_db is not None:
             #todo secure from injections
             c.execute("INSERT INTO " + table + " VALUES (" + (len(data)-1) * "?," + "?)", data)
-            print("INSERT INTO " + table + " VALUES (" + (len(data)-1) * "?," + "?)".format(data))
-        db.commit()
+            print("INSERT INTO " + table + " VALUES (" + (len(data)-1) * "?," + "?) : id {}".format(data, c.lastrowid))
+            db.commit()
         db.close()
 
 
@@ -173,7 +175,7 @@ def get_columns_from_table(c, table):
     return map(lambda x: x[0], c.description)
 
 
-def db_content_with_data_to_be_added_are_same(is_in_db, data):
+def db_content_with_data_to_be_added_are_the_same(is_in_db, data):
     '''Function checks if data that is intended to be putted in db
        isn;t already there. It will detect if there are any difference
        in corresponding tuples. If difference is present it will return TRUE
