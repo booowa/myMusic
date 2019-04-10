@@ -1,66 +1,151 @@
 import sqlite3
 import re
-import peewee
+import logg
+import logging
+from peewee import *
 
 count_how_many_songs_were_added = 0
+db = SqliteDatabase("collection.db")
+
+
+class BaseModel(Model):
+    class Meta:
+        database = db
+
+class Playlist(BaseModel):
+    #todo title -> playlist_title
+    title = TextField(primary_key=True)
+    type = TextField()  #regular, chillout, wyjazdowa...
+    playlist_id = TextField()
+    source = TextField()    #for example youtube
+
+
+class SongDetails(BaseModel):
+    artist = TextField()
+    #todo title -> song_title
+    title = TextField()
+    time = IntegerField()
+    tag = TextField()
+    additional_info = TextField()
+    time = TimeField(null=True)
+
+class Song(BaseModel):
+    song_string = TextField()
+    source = TextField()
+    time = TimeField(null=True)
+    belongs_to_playlist = ForeignKeyField(Playlist, backref='Songs')
+    videoId = TextField(null=True)
+    artist = TextField(null=True)
+    title = TextField(null=True)
+    additonalInfo = TextField(null=True)
+    # http://docs.peewee-orm.com/en/latest/peewee/api.html#fields-api
+
+
+    #song_details = ForeignKeyField(SongDetails, backref='Songs')
 
 
 def init_database():
-    db = sqlite3.connect("collection.sqlite", timeout=10)
-    c = db.cursor()
-    c.execute("CREATE TABLE IF NOT EXISTS playlists (_id INTEGER PRIMARY KEY, title TEXT, type TEXT, source TEXT)")
-    c.execute("CREATE TABLE IF NOT EXISTS songs (_id INTEGER PRIMARY KEY, song_string TEXT, videoId TEXT, "
-              "source TEXT, playlist_id INTEGER, song_details_id INTEGER)")
-    c.execute("CREATE TABLE IF NOT EXISTS song_details (_id INTEGER PRIMARY KEY, artist TEXT, title TEXT, "
-              "time INTEGER, additional_info TEXT)")
-    print("Tables created")
-    db.commit()
+    db.connect()
+    print("Before table creation")
+    #with db:
+    db.create_tables([Playlist, Song, SongDetails])
+    print("After table creation")
+    #a = Playlist(title='z0', type='standard', source='youtube')
+    #b = Playlist(type='alone')
+    #a.save()
+    #b.save()
+    #, Song, Song_details]
     db.close()
+
+    #c.execute("CREATE TABLE IF NOT EXISTS playlists (_id INTEGER PRIMARY KEY, title TEXT, type TEXT, source TEXT)")
+    #c.execute("CREATE TABLE IF NOT EXISTS songs (_id INTEGER PRIMARY KEY, song_string TEXT, videoId TEXT, "
+    #          "source TEXT, playlist_id INTEGER, song_details_id INTEGER)")
+    #c.execute("CREATE TABLE IF NOT EXISTS song_details (_id INTEGER PRIMARY KEY, artist TEXT, title TEXT, "
+    #          "time INTEGER, additional_info TEXT)")
+    #print("Tables created")
+    #db.commit()
+    #db.close()
 
 
 def add_record_to_db(table, **kwargs):
     if not kwargs:
-        print("value wasn't added to table {}, missing target column and value")
+        print("value wasn't added to table {}, missing target column and value".format(table))
         return
     else:
-        db = sqlite3.connect("collection.sqlite", timeout=10)
-        c = db.cursor()
-        if table == 'playlists':
+        if table == Playlist:
+            #constructor = Playlist
             if 'title' not in kwargs.keys():
                 print("To add values to table {}: you need to specify value for column title".format(table))
                 return
-            elif 'type' not in kwargs.keys():
+            query = Playlist.select(Playlist.title).where(Playlist.title == kwargs['title'])
+            print("Query {}".format(query))
+            print("Type: query {}".format(type(query)))
+            if query.exists():
+
+                # todo update record in db if there is diffrence
+                logging.debug("playlist {} already in table Playlist".format(kwargs['title']))
+                instance = query.get(db)
+                return instance
+
+            if 'type' not in kwargs.keys():
                 kwargs['type'] = determine_playlist_type(kwargs['title'])
-            else:
-                c.execute("SELECT * FROM " + table + " WHERE title = (?)", (kwargs['title'],))
-        elif table == 'songs':
+        elif table == Song:
+            #constructor = Song
             if 'song_string' not in kwargs.keys():
                 print("To add values to table {}: you need to specify value for column song_string".format(table))
                 return
-            else:
-                c.execute("SELECT * FROM " + table + " WHERE song_string = (?)", (kwargs['song_string'],))
-        elif table == 'song_details':
-            if set(['artist', 'title']).issubset(set(kwargs.keys())):
-                print("To add values to table {}: you need to specify value for column artist and title".format(table))
+            query = Song.select(Song.song_string,
+                                Song.belongs_to_playlist)\
+                        .where((kwargs['song_string'] == Song.song_string) &
+                                kwargs['belongs_to_playlist'] == Song.belongs_to_playlist)
+            print("Query {}".format(query))
+            print("Type: query {}".format(type(query)))
+            if query.exists():
+                # todo update record ind db if there is diffrence
+                print("Song {} already in table Songs".format(kwargs['song_string']))
                 return
-            else:
-                c.execute('SELECT * FROM ' + table + " WHERE artist = (?) AND title = (?)", (kwargs['artist'],
-                                                                                             kwargs['title']))
-        else:
-            print("Table {} do not exist".format(table))
 
-        is_in_db = c.fetchall()
+        print("Dodawanie recordu {} do tablicy {}".format(kwargs, table))
+        instance = table.create(**kwargs)
+        print("instance {}".format(instance))
+        print("constructor {}".format(table))
+        instance.save()
+        return instance
 
-        columns = list(get_columns_from_table(c, table))
-        #c.execute("SELECT * FROM " + table + " ")
-        #creats tuple with values for all avilable keys, if key dosn't exist in kwargs it will put None value
-        data = tuple([kwargs[i] if i in kwargs.keys() else None for i in columns])
-        if not db_content_with_data_to_be_added_are_the_same(is_in_db, data) or is_in_db is not None:
-            #todo secure from injections
-            c.execute("INSERT INTO " + table + " VALUES (" + (len(data)-1) * "?," + "?)", data)
-            print("INSERT INTO " + table + " VALUES (" + (len(data)-1) * "?," + "?) : id {}".format(data, c.lastrowid))
-            db.commit()
-        db.close()
+
+
+
+
+
+
+        #
+        #     elif 'type' not in kwargs.keys():
+        #         kwargs['type'] = determine_playlist_type(kwargs['title'])
+        #     else:
+        #         c.execute("SELECT * FROM " + table + " WHERE title = (?)", (kwargs['title'],))
+        #
+        # elif table == 'song_details':
+        #     if set(['artist', 'title']).issubset(set(kwargs.keys())):
+        #         print("To add values to table {}: you need to specify value for column artist and title".format(table))
+        #         return
+        #     else:
+        #         c.execute('SELECT * FROM ' + table + " WHERE artist = (?) AND title = (?)", (kwargs['artist'],
+        #                                                                                      kwargs['title']))
+        # else:
+        #     print("Table {} do not exist".format(table))
+        #
+        # is_in_db = c.fetchall()
+        #
+        # columns = list(get_columns_from_table(c, table))
+        # #c.execute("SELECT * FROM " + table + " ")
+        # #creats tuple with values for all avilable keys, if key dosn't exist in kwargs it will put None value
+        # data = tuple([kwargs[i] if i in kwargs.keys() else None for i in columns])
+        # if not db_content_with_data_to_be_added_are_the_same(is_in_db, data) or is_in_db is not None:
+        #     #todo secure from injections
+        #     c.execute("INSERT INTO " + table + " VALUES (" + (len(data)-1) * "?," + "?)", data)
+        #     print("INSERT INTO " + table + " VALUES (" + (len(data)-1) * "?," + "?) : id {}".format(data, c.lastrowid))
+        #     db.commit()
+        # db.close()
 
 
 # def add_record_to_db_playlist(playlist, **kwargs):
@@ -162,12 +247,15 @@ def update_song_record_in_db(c, song_string, **kwargs):
     # pass
 
 
+#still uses old way of working with db's
 def get_db_playlist_id(playlist):
-    db = sqlite3.connect("collection.sqlite", timeout=10)
-    c = db.cursor()
-    c.execute("SELECT _id from playlists WHERE title = (?)", (playlist,))
-    (db_playlist_id,) = c.fetchone()
-    return db_playlist_id
+    playlist = Playlist.select().where(Playlist.title == playlist).get()
+    print(playlist)
+#     db = sqlite3.connect("collection.sqlite", timeout=10)
+#     c = db.cursor()
+#     c.execute("SELECT _id from playlists WHERE title = (?)", (playlist,))
+#     (db_playlist_id,) = c.fetchone()
+#     return db_playlist_id
 
 
 def get_columns_from_table(c, table):
@@ -213,11 +301,12 @@ def manage_duplicates(song_string):
     #todo think about how to manage duplicates
 
 
-def print_db_playlist():
-    db = sqlite3.connect("collection.sqlite", timeout=10)
-    c = db.cursor()
-    c.execute("SELECT * FROM playlists")
-    for row in c:
-        print(row)
-    db.close()
+#still uses old way of working with db's
+# def print_db_playlist():
+#     db = sqlite3.connect("collection.sqlite", timeout=10)
+#     c = db.cursor()
+#     c.execute("SELECT * FROM playlists")
+#     for row in c:
+#         print(row)
+#     db.close()
 
